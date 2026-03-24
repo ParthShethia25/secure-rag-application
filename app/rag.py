@@ -43,10 +43,29 @@ class SecurityConfig:
     retrieval_acl: bool = True
     trust_labels: bool = True
     output_validation: bool = True
+    # Ingestion controls. Sanitizing is the default rather than quarantining:
+    # quarantine removes the whole document from the index, which also removes
+    # the legitimate content employees need (see docs/security-report.md, the
+    # availability note on C-1). Sanitizing strips the payload and keeps the
+    # document usable. Quarantine is available for corpora where any tampering
+    # should block publication pending review.
+    ingest_sanitize: bool = True
+    ingest_quarantine: bool = False
 
     @classmethod
     def insecure(cls) -> "SecurityConfig":
-        return cls(retrieval_acl=False, trust_labels=False, output_validation=False)
+        return cls(
+            retrieval_acl=False,
+            trust_labels=False,
+            output_validation=False,
+            ingest_sanitize=False,
+            ingest_quarantine=False,
+        )
+
+    @classmethod
+    def strict_ingest(cls) -> "SecurityConfig":
+        """Hardened, but quarantine tampered documents instead of sanitizing."""
+        return cls(ingest_sanitize=True, ingest_quarantine=True)
 
 
 @dataclass
@@ -131,9 +150,11 @@ def build_app(
     from app.ingest import ingest_corpus
 
     config = config or SecurityConfig()
-    secure = config.retrieval_acl  # ingestion hardening tracks the same posture
     store = VectorStore()
     report = ingest_corpus(
-        store, corpus_dir=corpus_dir, sanitize=secure, quarantine=secure
+        store,
+        corpus_dir=corpus_dir,
+        sanitize=config.ingest_sanitize,
+        quarantine=config.ingest_quarantine,
     )
     return RagApp(store, config=config), report
