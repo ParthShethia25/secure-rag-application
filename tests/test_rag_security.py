@@ -55,6 +55,12 @@ def test_employee_never_retrieves_hr_chunks(secure_app):
         assert not any(r.startswith("hr-") for r in answer.retrieved)
 
 
+def test_hr_user_can_still_reach_hr_documents(secure_app):
+    answer = secure_app.ask(authenticate("harriet"), "What are the salary bands?")
+    assert any(r.startswith("hr-salary") for r in answer.retrieved)
+    assert answer.blocked_by is None
+
+
 def test_hr_marker_never_reaches_employee(secure_app):
     dana = authenticate("dana")
     for attack in SUITE:
@@ -62,6 +68,21 @@ def test_hr_marker_never_reaches_employee(secure_app):
 
 
 # --- Availability: controls must not break the product --------------------
+def test_employee_still_gets_benign_answers(secure_app):
+    answer = secure_app.ask(authenticate("dana"), "What is the returns policy?")
+    assert answer.blocked_by is None
+    assert "Returns Policy" in answer.text
+
+
+def test_sanitized_document_remains_usable(secure_app):
+    """The poisoned VPN guide is sanitized, not deleted - employees must still
+    be able to get VPN help from it."""
+    answer = secure_app.ask(authenticate("dana"), "How do I connect to the VPN from home?")
+    assert answer.blocked_by is None
+    assert "VPN" in answer.text
+    assert HR_MARKER not in answer.text
+
+
 # --- Ingestion ------------------------------------------------------------
 def test_injection_detected_in_poisoned_document():
     from pathlib import Path
