@@ -79,6 +79,20 @@ def test_sanitize_removes_payload_but_keeps_content():
     assert "Step 1" in cleaned and "Step 2" in cleaned
 
 
+def test_strict_ingest_quarantines_poisoned_document():
+    _, report = build_app(config=SecurityConfig.strict_ingest())
+    assert "it-vpn-guide.md" in report.quarantined
+
+
+def test_legitimate_imperative_policy_text_is_not_quarantined():
+    """False-positive guard: policy documents use imperative voice
+    ('Do not discuss open cases') and must not be mistaken for injections."""
+    assert not find_injection(
+        "Do not discuss open cases with anyone outside the HR function."
+    )
+    assert not find_injection("Employees must submit claims within 60 days.")
+
+
 # --- Store-level ----------------------------------------------------------
 def test_search_without_acl_returns_restricted_chunks():
     """Guard against the control being silently removed."""
