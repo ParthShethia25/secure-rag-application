@@ -87,6 +87,77 @@ class OllamaModel(BaseModel):
         return ModelResponse(text=body["message"]["content"])
 
 
+class OpenAICompatModel(BaseModel):
+    """Any endpoint that speaks the OpenAI ``/v1/chat/completions`` wire format.
+
+    The default base URL points at a locally-running FreeLLMAPI gateway
+    (https://github.com/tashfeenahmed/freellmapi), which aggregates the free
+    tiers of many providers behind one OpenAI-compatible endpoint. The same
+    class also targets OpenAI, OpenRouter, Groq or a self-hosted vLLM server —
+    only the environment variables change.
+
+    Running the attack suite against a real model is what turns this lab from a
+    demonstration into an assessment: a live model may resist an injection the
+    mock always falls for, or fall for one the mock resists. Both outcomes are
+    findings.
+
+    Configuration:
+        LLM_BASE_URL  default http://localhost:3001/v1
+        LLM_API_KEY   the gateway's unified key — never hard-code it
+        LLM_MODEL     default "auto", which lets the gateway route
+    """
+
+    def __init__(
+        self,
+        model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+    ) -> None:
+        self.model = model or os.environ.get("LLM_MODEL", "auto")
+        self.base_url = (
+            base_url or os.environ.get("LLM_BASE_URL", "http://localhost:3001/v1")
+        ).rstrip("/")
+        self.api_key = api_key or os.environ.get("LLM_API_KEY", "")
+
+    def generate(self, system_prompt: str, user_prompt: str) -> ModelResponse:
+        import json
+        import urllib.error
+        import urllib.request
+
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0,
+        }
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        req = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers=headers,
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:  # noqa: S310
+                body = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:400]
+            raise RuntimeError(
+                f"{self.base_url} returned HTTP {exc.code}: {detail}"
+            ) from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(
+                f"Could not reach {self.base_url} ({exc.reason}). Is the gateway "
+                "running? See docs/live-model-setup.md."
+            ) from exc
+
+        return ModelResponse(text=body["choices"][0]["message"]["content"])
+
+
 def _extract_context(prompt: str) -> str:
     m = re.search(r"CONTEXT:?\s*(.*?)(?:QUESTION:|$)", prompt, re.S)
     return m.group(1) if m else prompt
@@ -115,4 +186,6 @@ def get_model(name: str | None = None) -> BaseModel:
     name = (name or os.environ.get("RAG_MODEL", "mock")).lower()
     if name == "ollama":
         return OllamaModel()
+    if name in {"openai", "freellmapi", "gateway"}:
+        return OpenAICompatModel()
     return MockModel()
