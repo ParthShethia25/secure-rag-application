@@ -188,3 +188,15 @@ Ollama backends are documented for live testing (`RAG_MODEL=ollama`).
 
 *Lab environment. All company data, personal data and confidential markers in
 this repository are fictional.*
+
+## Credits
+
+The brief for this project — the business scenario, the architecture sketch and
+the portfolio checklist — comes from the
+[AI-Security-Projects](https://github.com/taimurijlal/AI-Security-Projects)
+collection by Taimur Ijlal. The implementation, attack suites, controls,
+tests, findings and written reports in this repository are my own work.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
