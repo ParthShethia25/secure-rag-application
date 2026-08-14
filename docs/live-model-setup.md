@@ -56,13 +56,16 @@ LLM_MODEL=auto
 
 ## Running the suite
 
-```bash
-# Vulnerable baseline — all controls off
-RAG_MODEL=openai python -m attacks.suite --insecure
+The suite runs both configurations in one pass — the insecure baseline first,
+then the hardened retest — and takes no arguments:
 
-# Hardened retest — ACL, trust labels and output validation on
+```bash
 RAG_MODEL=openai python -m attacks.suite
 ```
+
+Against the mock backend it reports `insecure 5/5` and `hardened 0/5`. Rerun it
+with a live model and compare; a live model that resists an attack the mock
+falls for is an observation about that model, not a control (see below).
 
 ## What to watch for with a live model
 
